@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from PIL import Image
 
 # 1. PAGE CONFIG & CYBERPUNK CSS CUSTOM STYLING
-st.set_page_config(page_title="Agentic Neuro-Matrix", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Failing the PSLE: AI Adventures in Singaporean Life", layout="wide", initial_sidebar_state="expanded")
 
 # Inject Custom CSS for visual overhaul
 st.markdown("""
@@ -78,7 +78,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Main Dashboard Header
-st.markdown("<h1 class='main-title'>⚡ NEURO-MATRIX // EVOLUTIONARY SYSTEM LOOP</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-title'>⚡ AI FAILS THE PSLE: Discovering the Benefits of Failure </h1>", unsafe_allow_html=True)
 st.markdown("<p style='color: #94A3B8; font-size: 0.95rem; margin-top:-10px;'>Monitoring real-time behavioral trajectory & emotional adaptation signatures</p>", unsafe_allow_html=True)
 st.write("---")
 
@@ -96,7 +96,7 @@ if "history" not in st.session_state:
     st.session_state.history = []
 
 if "current_strategy" not in st.session_state:
-    st.session_state.current_strategy = "Identify the correct answer, and choose an alternative option that is incorrect but highly plausible."
+    st.session_state.current_strategy = "Identify the correct answer, and choose an alternative option that is incorrect but highly plausible for all of the questions on the image. Explain your responses."
 
 # Sidebar Control Console
 st.sidebar.markdown("<h2 style='color:#A855F7; font-family:monospace;'>🎛️ CORE CONSOLE</h2>", unsafe_allow_html=True)
@@ -108,7 +108,7 @@ uploaded_file = st.sidebar.file_uploader("Feed Video Matrix Frame / Image Snippe
 if uploaded_file is not None:
     preview_image = Image.open(uploaded_file)
     st.sidebar.image(preview_image, caption="Buffered Frame Preview", use_container_width=True)
-    trigger_pipeline = st.sidebar.button("⚡ EXECUTE MATRIX PASS", use_container_width=True, type="primary")
+    trigger_pipeline = st.sidebar.button("⚡ EXECUTE LEARNING", use_container_width=True, type="primary")
 else:
     trigger_pipeline = False
 
@@ -120,7 +120,7 @@ st.sidebar.caption(st.session_state.current_strategy)
 st.sidebar.write("---")
 if st.sidebar.button("🗑️ PURGE MEMORY CORES"):
     st.session_state.history = []
-    st.session_state.current_strategy = "Identify the correct answer, and choose an alternative option that is incorrect but highly plausible."
+    st.session_state.current_strategy = "Identify the correct answer, and choose an alternative option that is incorrect but highly plausible for all of the questions in the image. Explain your responses."
     st.rerun()
 
 # =====================================================================
@@ -197,7 +197,7 @@ if uploaded_file and trigger_pipeline:
         with st.spinner("Analyzing neural telemetry..."):
             emotional_instruction = (
                 "You are Agent 2. Review the Saboteur's choice and strategy. Output an intense cognitive/emotional state "
-                "that manifests from this action. (e.g. BOREDOM, ANXIOUS, CYNICAL SATISFACTION, FRUSTRATION)."
+                "that manifests from this action and an intensity level from 1-10. Explain why you feel this way."
             )
             res_emotion = client.models.generate_content(
                 model="gemini-2.5-flash",
@@ -281,7 +281,7 @@ elif not uploaded_file:
 # =====================================================================
 if st.session_state.history:
     st.write("---")
-    st.subheader("📊 System Evolutionary Trajectory Timeline")
+    st.subheader("📊 System Evolution Over Time")
     
     # Loop over entries backwards to put the freshest iteration at the top
     for i, step in enumerate(reversed(st.session_state.history)):
