@@ -1014,28 +1014,97 @@ assert len(t_result.plan.steps) >= 1
 
 ## Correctness Properties
 
-1. **One-correct invariant**: For any pipeline run, `question_result.correct_count == 1` and
-   `sum(aq.is_correct for aq in question_result.answered_questions) == 1`.
+*A property is a characteristic or behavior that should hold true across all valid executions of a system—essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-2. **Emotion validity**: For any completed run, `emotion_result.reaction.emotion` is a value
-   in `SingaporeanEmotion`. The intensity satisfies `1 ≤ intensity ≤ 10`.
+### Property 1: Exactly-One-Correct Enforcement
 
-3. **Non-empty next steps**: For any completed run, `len(tools_result.plan.steps) ≥ 1`.
+*For any* list of answered questions (1 to 20 items) and any valid correct_index, applying `enforce_exactly_one_correct` SHALL produce a result where exactly 1 element has `is_correct=True` at the specified index, and all other elements have `is_correct=False` with `given_answer != correct_answer`.
 
-4. **Run ID consistency**: For any completed run, `question_result.run_id == emotion_result.run_id
-   == tools_result.run_id == run_id`.
+**Validates: Requirements 2.1, 2.2, 2.3**
 
-5. **State progression**: For any agent, status transitions follow the finite sequence:
-   `idle → running → done` (or `idle → running → error`). No backward transitions occur.
+### Property 2: Score Formula Accuracy
 
-6. **Score accuracy**: `question_result.score_percentage == (1 / question_result.total_count) * 100`
-   for all runs where `total_count > 0`.
+*For any* QuestionResult with `total_count > 0` and `correct_count == 1`, the `score_percentage` SHALL equal `(1 / total_count) * 100`.
 
-7. **Idempotent question parse**: `parse_questions(parse_questions(x).to_dict())` yields a
-   `QuestionSet` equal to the first parse result for any valid input `x`.
+**Validates: Requirements 2.5**
 
-8. **Search query length**: `len(tools_agent._build_search_query(emotion_result)) ≤ 200` for all
-   valid `EmotionResult` inputs.
+### Property 3: Emotion Output Validity
+
+*For any* QuestionResult input to the Emotion Agent, the output EmotionReaction SHALL have: `emotion` as a valid member of the SingaporeanEmotion enum, `intensity` in the range [1, 10] inclusive, and non-empty `singlish_phrase` and `narrative` strings.
+
+**Validates: Requirements 3.1, 3.2, 3.3**
+
+### Property 4: Emotion Fallback on Malformed Input
+
+*For any* malformed or unparseable LLM response string, the `_parse_emotion_response` fallback SHALL produce an EmotionReaction with `emotion == "blur_like_sotong"`, `intensity == 5`, and a non-empty singlish_phrase.
+
+**Validates: Requirements 3.4, 9.3**
+
+### Property 5: Search Query Length Bound
+
+*For any* valid EmotionResult (with any SingaporeanEmotion and any narrative text), the `_build_search_query` function SHALL produce a non-empty string of length ≤ 200 characters.
+
+**Validates: Requirements 4.1, 4.6**
+
+### Property 6: Non-Empty Next Steps
+
+*For any* completed Tools Agent execution, the resulting `NextStepPlan.steps` list SHALL contain at least 1 step.
+
+**Validates: Requirements 4.2**
+
+### Property 7: Run ID Consistency
+
+*For any* completed pipeline run, `question_result.run_id`, `emotion_result.run_id`, and `tools_result.run_id` SHALL all equal the original `run_id` passed to the pipeline.
+
+**Validates: Requirements 5.2**
+
+### Property 8: Agent State Transition Correctness
+
+*For any* agent execution, the status transitions SHALL follow exactly one of: `idle → running → done` (success) or `idle → running → error` (failure). No backward transitions or skipped states SHALL occur, and `started_at` SHALL be non-null when status is "running" or later, and `completed_at` SHALL be non-null when status is "done" or "error".
+
+**Validates: Requirements 6.1, 6.2, 6.4, 6.5**
+
+### Property 9: History Ordering
+
+*For any* set of stored runs with distinct `created_at` timestamps, the `/api/history` endpoint SHALL return RunSummary objects in strictly descending order of `created_at`.
+
+**Validates: Requirements 7.3**
+
+### Property 10: State Store Round-Trip
+
+*For any* valid RunState, AgentState, QuestionResult, EmotionResult, or ToolsResult, writing to the State Store and reading back SHALL produce an equivalent object.
+
+**Validates: Requirements 8.1**
+
+### Property 11: Unique Question Set ID Generation
+
+*For any* two distinct calls to `store_question_set`, the returned `question_set_id` values SHALL be different.
+
+**Validates: Requirements 8.4**
+
+### Property 12: QuestionSet Parse Round-Trip
+
+*For any* valid QuestionSet object, serializing to dict and parsing back via `parse_questions` SHALL produce an equivalent QuestionSet with all fields preserved.
+
+**Validates: Requirements 11.1**
+
+### Property 13: UUID Generation for Missing IDs
+
+*For any* valid question input that omits `question_id` fields, the `parse_questions` function SHALL generate a unique UUID for each question such that all IDs within the set are distinct.
+
+**Validates: Requirements 11.2**
+
+### Property 14: Duplicate ID Detection
+
+*For any* question input containing two or more questions with the same `question_id`, the `parse_questions` function SHALL raise a ValueError.
+
+**Validates: Requirements 11.3**
+
+### Property 15: Invalid Input Rejection
+
+*For any* uploaded payload that is missing required fields (question text, correct_answer) or has an empty questions list, the API_Layer SHALL reject it with an error rather than producing a valid QuestionSet.
+
+**Validates: Requirements 1.2, 12.2**
 
 ---
 
