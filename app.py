@@ -145,6 +145,8 @@ class DirectorOutput(BaseModel):
 # DATA PROCESS PIPELINE RUNTIME
 # =====================================================================
 if uploaded_file and trigger_pipeline:
+
+    uploaded_file.seek(0)
   
     image_bytes = uploaded_file.read()
     detected_mime_type = uploaded_file.type if uploaded_file.type else "image/jpeg"
