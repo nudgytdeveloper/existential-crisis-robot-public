@@ -28,11 +28,12 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 
 #### Acceptance Criteria
 
-1. WHEN a user uploads questions as JSON or multipart form data, THE API_Layer SHALL parse the input into a validated QuestionSet with unique question IDs
-2. WHEN the uploaded payload is missing required fields or contains an empty questions list, THE API_Layer SHALL return HTTP 400 with a descriptive error message
-3. WHEN the uploaded payload exceeds 50KB, THE API_Layer SHALL reject the request to prevent abuse
-4. WHEN a valid QuestionSet is parsed, THE State_Store SHALL persist the QuestionSet and return a generated question_set_id
-5. THE API_Layer SHALL cap question sets at a maximum of 20 questions to avoid exceeding LLM context limits
+1. WHEN a user uploads questions as JSON or multipart form data, THE API_Layer SHALL parse the input into a validated QuestionSet where each question has a non-empty text field, a non-empty correct_answer field, an options list (4 items for MCQ or empty for open-ended), a subject field, and a difficulty field valued "easy", "medium", or "hard", with unique question IDs generated for any questions that lack them
+2. IF the uploaded payload is missing required fields (text, correct_answer, subject, or difficulty on any question) or contains an empty questions list, THEN THE API_Layer SHALL return HTTP 400 with an error message indicating which field is missing or that the questions list is empty
+3. IF the uploaded payload exceeds 50KB, THEN THE API_Layer SHALL reject the request with HTTP 400 and an error message indicating the size limit was exceeded
+4. WHEN a valid QuestionSet is parsed, THE State_Store SHALL persist the QuestionSet and THE API_Layer SHALL return a JSON response containing the generated question_set_id and the question count
+5. IF the uploaded payload contains more than 20 questions, THEN THE API_Layer SHALL return HTTP 400 with an error message indicating the maximum question count of 20 has been exceeded
+6. IF the uploaded payload contains duplicate question_ids within the set, THEN THE API_Layer SHALL return HTTP 400 with an error message indicating which question_ids are duplicated
 
 ### Requirement 2: Question Agent Deliberate Failure
 
@@ -41,10 +42,11 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 #### Acceptance Criteria
 
 1. WHEN the Question_Agent receives a non-empty QuestionSet, THE Question_Agent SHALL produce answers where exactly 1 answer is correct and all others are incorrect
-2. WHEN the LLM returns answers that do not satisfy the exactly-one-correct invariant, THE Question_Agent SHALL enforce the invariant post-hoc by adjusting answers
-3. WHEN enforcing the invariant, THE Question_Agent SHALL set the correct answer at a randomly chosen index and generate plausible wrong answers for all other indices
-4. THE Question_Agent SHALL write the QuestionResult and updated AgentState to the State_Store upon completion
+2. IF the LLM returns answers that do not satisfy the exactly-one-correct invariant, THEN THE Question_Agent SHALL enforce the invariant post-hoc by selecting a uniformly random index as the sole correct answer and replacing all other answers that match the correct answer with an incorrect option
+3. WHEN enforcing the invariant, THE Question_Agent SHALL set the given_answer at the chosen correct index to the question's correct_answer and ensure all other given_answers differ from their respective correct_answer
+4. WHEN the Question_Agent completes execution, THE Question_Agent SHALL write the QuestionResult and updated AgentState to the State_Store
 5. WHEN the Question_Agent completes, THE QuestionResult SHALL contain a score_percentage equal to (1 / total_count) * 100
+6. IF the QuestionSet contains exactly 1 question, THEN THE Question_Agent SHALL answer that question correctly, producing a score_percentage of 100
 
 ### Requirement 3: Emotion Agent Singaporean Reaction
 
@@ -53,10 +55,11 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 #### Acceptance Criteria
 
 1. WHEN the Emotion_Agent receives a QuestionResult, THE Emotion_Agent SHALL generate an emotional reaction using one emotion from the SingaporeanEmotion enumeration (kiasu, kiasi, paiseh, sian, bojio, shiok, alamak, walao, sibei_stress, can_make_it, cannot_make_it, blur_like_sotong)
-2. THE Emotion_Agent SHALL produce an intensity value clamped between 1 and 10 inclusive
-3. THE Emotion_Agent SHALL produce a non-empty singlish_phrase and a non-empty narrative for every reaction
-4. IF the LLM returns a malformed or unparseable emotion response, THEN THE Emotion_Agent SHALL fall back to blur_like_sotong with a default Singlish phrase and intensity of 5
-5. THE Emotion_Agent SHALL write the EmotionResult and updated AgentState to the State_Store upon completion
+2. THE Emotion_Agent SHALL produce an intensity value clamped between 1 and 10 inclusive for every reaction
+3. THE Emotion_Agent SHALL produce a singlish_phrase of at least 5 characters and a narrative of at least 20 characters for every reaction
+4. IF the LLM returns a malformed, unparseable, or empty emotion response, THEN THE Emotion_Agent SHALL fall back to blur_like_sotong with singlish_phrase "Blur like sotong lah, dunno what happening", intensity of 5, and a narrative indicating confusion
+5. IF the LLM returns a parseable emotion response but the emotion value is not a member of the SingaporeanEmotion enumeration, THEN THE Emotion_Agent SHALL substitute the invalid emotion with sian and retain the remaining fields from the parsed response
+6. WHEN the Emotion_Agent completes processing, THE Emotion_Agent SHALL write the EmotionResult and updated AgentState to the State_Store
 
 ### Requirement 4: Tools Agent Next Steps Determination
 
@@ -65,11 +68,12 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 #### Acceptance Criteria
 
 1. WHEN the Tools_Agent receives an EmotionResult, THE Tools_Agent SHALL construct a search query from the emotional context and execute an Exa search limited to 5 results
-2. WHEN search results are available, THE Tools_Agent SHALL synthesize the emotion context and search results via LLM to produce a NextStepPlan with at least 1 step
-3. IF the Exa API is unreachable or returns an error, THEN THE Tools_Agent SHALL continue with empty search results and produce next steps based solely on emotion context
-4. THE Tools_Agent SHALL record all external tools invoked during the run in the tools_used list
-5. THE Tools_Agent SHALL write the ToolsResult and updated AgentState to the State_Store upon completion
-6. THE Tools_Agent SHALL produce search queries no longer than 200 characters
+2. WHEN search results are available, THE Tools_Agent SHALL synthesize the emotion context and search results via LLM to produce a NextStepPlan containing between 1 and 5 steps inclusive
+3. IF the Exa API does not respond within 10 seconds or returns an error, THEN THE Tools_Agent SHALL continue with empty search results and produce next steps based solely on emotion context
+4. IF the LLM synthesis call fails or returns unparseable output, THEN THE Tools_Agent SHALL produce a fallback NextStepPlan with a single default absurd step and record the failure in the tools_used list
+5. THE Tools_Agent SHALL record all external tools invoked during the run in the tools_used list, including at minimum "exa_search" and "llm_synthesis"
+6. THE Tools_Agent SHALL write the ToolsResult and updated AgentState to the State_Store upon completion
+7. THE Tools_Agent SHALL produce search queries no longer than 200 characters
 
 ### Requirement 5: Pipeline Orchestration
 
@@ -77,11 +81,12 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 
 #### Acceptance Criteria
 
-1. WHEN a pipeline run is triggered with a valid question_set_id, THE Pipeline SHALL execute Agent 1, then Agent 2, then Agent 3 in sequence
+1. WHEN a pipeline run is triggered with a valid question_set_id, THE Pipeline SHALL generate a unique run_id, set the run state to "running", and execute Question_Agent, then Emotion_Agent, then Tools_Agent in sequence, passing each agent's persisted result as input to the next
 2. THE Pipeline SHALL maintain run_id consistency across all three agent results (question_result.run_id == emotion_result.run_id == tools_result.run_id)
-3. WHEN all three agents complete successfully, THE Pipeline SHALL set the run state to "complete"
-4. IF any agent encounters an unrecoverable error, THEN THE Pipeline SHALL set the run state to "failed" and record the error
-5. THE Pipeline SHALL update the run state to "running" before agent execution begins
+3. WHEN all three agents complete successfully, THE Pipeline SHALL set the run state to "complete" and record the completed_at timestamp
+4. IF any agent encounters an error after retries are exhausted, THEN THE Pipeline SHALL set the run state to "failed" and record the error message in the RunState
+5. IF the provided question_set_id does not correspond to a stored QuestionSet, THEN THE Pipeline SHALL reject the run request and return an error indicating the question set was not found
+6. THE Pipeline SHALL persist each agent's result to the State_Store before invoking the next agent in the sequence
 
 ### Requirement 6: Agent State Transitions
 
@@ -91,9 +96,12 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 
 1. THE AgentState SHALL follow the transition sequence idle → running → done for successful execution
 2. THE AgentState SHALL follow the transition sequence idle → running → error for failed execution
-3. THE State_Store SHALL persist each agent state transition immediately when it occurs
-4. WHEN an agent transitions to "running", THE AgentState SHALL record the started_at timestamp
-5. WHEN an agent transitions to "done" or "error", THE AgentState SHALL record the completed_at timestamp
+3. WHEN an agent state transition occurs, THE State_Store SHALL persist the new state within 500 milliseconds
+4. WHEN an agent transitions to "running", THE AgentState SHALL record the started_at timestamp with second-level precision or finer
+5. WHEN an agent transitions to "done" or "error", THE AgentState SHALL record the completed_at timestamp with second-level precision or finer
+6. IF an invalid state transition is attempted (any transition not matching idle → running, running → done, or running → error), THEN THE AgentState SHALL reject the transition and remain in its current state
+7. WHEN the system initializes, THE AgentState for each of the 3 agents (Question, Emotion, Tools) SHALL be set to "idle" with no started_at or completed_at timestamps
+8. IF the State_Store fails to persist a state transition, THEN THE AgentState SHALL retain the updated in-memory state and indicate a persistence failure to the caller
 
 ### Requirement 7: API Status and History
 
@@ -101,10 +109,11 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 
 #### Acceptance Criteria
 
-1. WHEN a GET request is made to /api/status with a valid run_id, THE API_Layer SHALL return the RunStatus with per-agent states and latest outputs
-2. IF a GET request is made to /api/status with an unknown run_id, THEN THE API_Layer SHALL return HTTP 404 with an error message
-3. WHEN a GET request is made to /api/history, THE API_Layer SHALL return a list of RunSummary objects sorted by created_at descending
-4. THE API_Layer SHALL limit history results to 20 entries by default
+1. WHEN a GET request is made to /api/status with a valid run_id (UUID format matching an existing run), THE API_Layer SHALL return the RunStatus containing per-agent states and the most recent output for each agent within 2 seconds
+2. IF a GET request is made to /api/status with a run_id that is not a valid UUID format or does not match any existing run, THEN THE API_Layer SHALL return HTTP 404 with an error message indicating the run was not found
+3. WHEN a GET request is made to /api/history, THE API_Layer SHALL return a list of RunSummary objects (containing run_id, status, created_at, completed_at, correct_count, emotion, and next_steps_count) sorted by created_at descending
+4. WHEN a GET request is made to /api/history with a limit query parameter between 1 and 100, THE API_Layer SHALL return at most that number of entries; IF no limit parameter is provided, THEN THE API_Layer SHALL return at most 20 entries
+5. IF a GET request is made to /api/status without a run_id query parameter, THEN THE API_Layer SHALL return HTTP 400 with an error message indicating the run_id parameter is required
 
 ### Requirement 8: State Store Persistence
 
@@ -112,10 +121,12 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 
 #### Acceptance Criteria
 
-1. THE State_Store SHALL support set and get operations for RunState, AgentState, QuestionResult, EmotionResult, and ToolsResult
-2. THE State_Store SHALL support listing past runs with configurable limit
-3. THE State_Store SHALL set a TTL of 7 days on run data to prevent unbounded storage growth
-4. WHEN a QuestionSet is stored, THE State_Store SHALL generate and return a unique question_set_id
+1. THE State_Store SHALL support set and get operations for RunState, AgentState, QuestionResult, EmotionResult, ToolsResult, and QuestionSet, where a get following a set for the same key returns the originally stored data
+2. THE State_Store SHALL support listing past runs sorted by created_at descending, accepting a limit parameter between 1 and 100 inclusive, defaulting to 20 when no limit is specified
+3. THE State_Store SHALL set a TTL of 7 days on all persisted keys including RunState, AgentState, QuestionResult, EmotionResult, ToolsResult, and QuestionSet data
+4. WHEN a QuestionSet is stored, THE State_Store SHALL generate and return a question_set_id that is unique across all currently stored QuestionSets
+5. IF a get operation is called with a key that does not exist, THEN THE State_Store SHALL return None without raising an error
+6. IF the State_Store connection to Vercel KV is unavailable or times out within 5 seconds, THEN THE State_Store SHALL raise an error that the calling layer can handle without corrupting other stored data
 
 ### Requirement 9: Error Handling and Resilience
 
@@ -123,10 +134,11 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 
 #### Acceptance Criteria
 
-1. IF the LLM API call exceeds timeout or returns a rate limit error, THEN THE Pipeline SHALL retry up to 3 times with exponential backoff (1s, 2s, 4s)
-2. IF all retries are exhausted, THEN THE Pipeline SHALL set the agent state to "error" and the run state to "failed"
-3. IF the Emotion_Agent receives unparseable LLM output, THEN THE Emotion_Agent SHALL use the fallback emotion without failing the run
-4. IF the Exa API is unreachable, THEN THE Tools_Agent SHALL continue execution with empty search results without failing the run
+1. IF the LLM API call exceeds a 30-second timeout or returns a rate limit error, THEN THE Pipeline SHALL retry the call up to 3 times with exponential backoff delays of 1 second, 2 seconds, and 4 seconds between attempts
+2. IF all 3 retries are exhausted, THEN THE Pipeline SHALL set the failing agent's AgentState to "error" with a non-empty error_message describing the failure reason, and set the RunState to "failed"
+3. IF the Emotion_Agent receives unparseable LLM output, THEN THE Emotion_Agent SHALL use the fallback emotion (blur_like_sotong, intensity 5, default Singlish phrase) and continue the pipeline run with AgentState set to "done"
+4. IF the Exa API returns a connection error, timeout exceeding 10 seconds, or HTTP 5xx response, THEN THE Tools_Agent SHALL continue execution with an empty search results list and produce next steps based solely on emotion context without failing the run
+5. IF the State_Store is unreachable when writing agent results, THEN THE Pipeline SHALL retry the write up to 2 times with 1-second delay, and IF all write retries fail, THEN THE Pipeline SHALL treat the run as failed
 
 ### Requirement 10: Dashboard Real-Time Monitoring
 
@@ -134,10 +146,11 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 
 #### Acceptance Criteria
 
-1. THE Dashboard SHALL display the current state of each agent (idle, running, done, error) with visual indicators
-2. THE Dashboard SHALL poll the /api/status endpoint to reflect agent state changes
-3. WHEN a pipeline run completes, THE Dashboard SHALL display the QuestionResult, EmotionResult, and ToolsResult
-4. THE Dashboard SHALL display run history with emotion, score, and next step count for each past run
+1. THE Dashboard SHALL display the current AgentState (idle, running, done, error) of each of the three agents, using a visually distinct indicator per state such that no two states share the same visual treatment
+2. WHILE a pipeline run is in progress, THE Dashboard SHALL poll the /api/status endpoint every 2 seconds and update the displayed agent states to reflect the latest response
+3. WHEN the /api/status response indicates the run state is "complete", THE Dashboard SHALL stop polling and display the QuestionResult (score_percentage, sabotaged answers), the EmotionResult (emotion, intensity, singlish_phrase), and the ToolsResult (next steps list, tools_used)
+4. THE Dashboard SHALL display run history sourced from /api/history showing emotion name, score_percentage, and next step count for each past run, up to the 20 entries returned by the API
+5. IF a poll request to /api/status fails or returns an error, THEN THE Dashboard SHALL display an error indication to the user and retry on the next polling interval without crashing or losing the previously displayed state
 
 ### Requirement 11: Question Parsing Round-Trip
 
@@ -145,9 +158,10 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 
 #### Acceptance Criteria
 
-1. FOR ALL valid QuestionSet objects, serializing to dict and parsing back SHALL produce an equivalent QuestionSet (round-trip property)
-2. WHEN parsing a valid input, THE parse_questions function SHALL populate all Question fields including generated UUIDs for questions without IDs
-3. WHEN parsing detects duplicate question_ids within a set, THE parse_questions function SHALL raise a ValueError
+1. WHEN a valid QuestionSet is serialized to dict and parsed back via parse_questions, THE parse_questions function SHALL return a QuestionSet where every field (question_set_id, questions, uploaded_at, source_filename) and every nested Question field (question_id, text, options, correct_answer, subject, difficulty) is equal to the original value
+2. WHEN parsing a valid input where one or more questions omit the question_id field, THE parse_questions function SHALL assign each missing question_id a UUID4 string such that all question_ids within the resulting QuestionSet are unique
+3. IF the input contains two or more questions with the same question_id value, THEN THE parse_questions function SHALL raise a ValueError indicating which question_id is duplicated
+4. IF the input is missing required fields (text, correct_answer) on any question or the questions list is empty, THEN THE parse_questions function SHALL raise a ValueError indicating the validation failure
 
 ### Requirement 12: Security and Input Constraints
 
@@ -155,7 +169,8 @@ The Existential Crisis Robot is a Python web application deployed on Vercel that
 
 #### Acceptance Criteria
 
-1. THE API_Layer SHALL restrict CORS to the same-origin dashboard domain
-2. THE API_Layer SHALL validate all uploaded payloads before processing
-3. THE Pipeline SHALL store LLM and Exa API keys as environment variables and never log or return them in responses
-4. THE API_Layer SHALL enforce payload size limits to prevent oversized uploads
+1. THE API_Layer SHALL restrict CORS by setting the Access-Control-Allow-Origin header to the deployed dashboard domain only, and SHALL reject preflight requests from any other origin
+2. WHEN the API_Layer receives an upload request, THE API_Layer SHALL verify the Content-Type is application/json or multipart/form-data and reject requests with any other Content-Type by returning HTTP 415
+3. THE Pipeline SHALL load LLM and Exa API keys exclusively from environment variables and SHALL ensure that no API key value appears in any HTTP response body, response header, or application log output
+4. THE API_Layer SHALL reject any request with a payload body exceeding 50KB by returning HTTP 413 before parsing the body content
+5. IF an unhandled error occurs during request processing, THEN THE API_Layer SHALL return a generic error message without exposing internal stack traces, environment variable values, or file paths
