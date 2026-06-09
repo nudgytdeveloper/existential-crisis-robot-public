@@ -3,18 +3,21 @@ import { DEFAULT_PERSONA } from "@/lib/prompts";
 import type { StudentPersona } from "@/lib/types";
 
 async function callGemini(systemPrompt: string, userPrompt: string): Promise<string> {
+  const apiKey = process.env.GOOGLE_API_KEY ?? "";
+
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GOOGLE_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [
-          { role: "user", parts: [{ text: systemPrompt + "\n\n" + userPrompt }] },
-        ],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
         generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 1000,
+          responseMimeType: "application/json",
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     }
@@ -26,7 +29,9 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<str
   }
 
   const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  if (!text) throw new Error(`Gemini returned empty text: ${JSON.stringify(data)}`);
+  return text;
 }
 
 /**

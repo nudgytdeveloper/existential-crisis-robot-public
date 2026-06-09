@@ -9,18 +9,21 @@ import {
 import type { BatchResult, StudentAnswer, AgentThoughts, StudentPersona } from "@/lib/types";
 
 async function callGemini(systemPrompt: string, userPrompt: string): Promise<string> {
+  const apiKey = process.env.GOOGLE_API_KEY ?? "";
+
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GOOGLE_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [
-          { role: "user", parts: [{ text: systemPrompt + "\n\n" + userPrompt }] },
-        ],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
         generationConfig: {
           temperature: 0.9,
-          maxOutputTokens: 2000,
+          maxOutputTokens: 4096,
+          responseMimeType: "application/json",
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     }
@@ -32,15 +35,51 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<str
   }
 
   const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
+  const candidate = data.candidates?.[0];
+  if (!candidate) throw new Error(`No candidates: ${JSON.stringify(data)}`);
+
+  const finishReason = candidate.finishReason;
+  if (finishReason && finishReason !== "STOP" && finishReason !== "MAX_TOKENS") {
+    throw new Error(`Gemini stopped with reason: ${finishReason}`);
+  }
+
+  const text = candidate.content?.parts?.[0]?.text ?? "";
+  if (!text) throw new Error(`Gemini returned empty text: ${JSON.stringify(data)}`);
+  return text;
 }
 
 function parseJSON<T>(raw: string): T {
-  const cleaned = raw
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
+  // Strip markdown fences
+  const stripped = raw
+    .replace(/^```(?:json)?\s*/im, "")
+    .replace(/\s*```\s*$/im, "")
     .trim();
-  return JSON.parse(cleaned) as T;
+
+  // Try strategies in order: full text, object extraction, array extraction
+  const strategies: Array<() => string> = [
+    () => stripped,
+    () => {
+      const s = stripped.indexOf("{");
+      const e = stripped.lastIndexOf("}");
+      if (s !== -1 && e > s) return stripped.slice(s, e + 1);
+      throw new Error("no object");
+    },
+    () => {
+      const s = stripped.indexOf("[");
+      const e = stripped.lastIndexOf("]");
+      if (s !== -1 && e > s) return stripped.slice(s, e + 1);
+      throw new Error("no array");
+    },
+  ];
+
+  for (const fn of strategies) {
+    try {
+      return JSON.parse(fn()) as T;
+    } catch {
+      // try next strategy
+    }
+  }
+  throw new Error(`Could not parse JSON from: ${stripped.slice(0, 200)}`);
 }
 
 export async function POST(req: NextRequest) {
