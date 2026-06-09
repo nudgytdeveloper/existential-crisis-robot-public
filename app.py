@@ -145,10 +145,15 @@ class DirectorOutput(BaseModel):
 # DATA PROCESS PIPELINE RUNTIME
 # =====================================================================
 if uploaded_file and trigger_pipeline:
+  
     image_bytes = uploaded_file.read()
-    image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
+    detected_mime_type = uploaded_file.type if uploaded_file.type else "image/jpeg"
+
+    image_part = types.Part.from_bytes(
+        data=image_bytes, 
+        mime_type=detected_mime_type
+    )
     
-    # Grid Layout Layout
     col1, col2, col3 = st.columns(3)
     
     # -----------------------------------------------------------------
