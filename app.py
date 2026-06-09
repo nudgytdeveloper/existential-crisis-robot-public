@@ -196,7 +196,7 @@ if uploaded_file and trigger_pipeline:
         
         with st.spinner("Analyzing neural telemetry..."):
             emotional_instruction = (
-                "You are Agent 2. Review the Saboteur's choice and strategy. Output an intense cognitive/emotional state "
+                "You are Agent 2. Review Agent 1's choice and strategy. Output an intense cognitive/emotional state "
                 "that manifests from this action and an intensity level from 1-10. Explain why you feel this way."
             )
             res_emotion = client.models.generate_content(
