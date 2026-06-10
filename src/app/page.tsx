@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, Brain, Eye, RotateCcw, Zap } from "lucide-react";
+import { useState, useCallback } from "react";
+import { AlertTriangle, Brain, Eye, RotateCcw, Volume2, Zap } from "lucide-react";
 import type {
   SaboteurOutput,
   EmotionOutput,
@@ -22,6 +22,7 @@ export default function Home() {
   const [agent2Output, setAgent2Output] = useState<EmotionOutput | null>(null);
   const [agent3Output, setAgent3Output] = useState<DirectorOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [speaking, setSpeaking] = useState(false);
 
   const currentQuestion: Question = questions[questionIndex % questions.length];
   const roundNumber = rounds.length + 1;
@@ -81,13 +82,6 @@ export default function Home() {
       const a3: DirectorOutput = await res3.json();
       setAgent3Output(a3);
 
-      // TTS (non-blocking)
-      fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: a2.existential_monologue }),
-      }).catch(() => {});
-
       // Save round
       const result: RoundResult = {
         round: roundNumber,
@@ -114,7 +108,56 @@ export default function Home() {
     setAgent2Output(null);
     setAgent3Output(null);
     setError(null);
+    setSpeaking(false);
+    window.speechSynthesis?.cancel();
   }
+
+  const speakMonologue = useCallback(async (text: string) => {
+    if (!text || speaking) return;
+    setSpeaking(true);
+
+    try {
+      // Try server TTS first
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+
+      if (!data.fallback && data.audio) {
+        // Play base64 audio from TTS server
+        const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
+        audio.onended = () => setSpeaking(false);
+        audio.onerror = () => setSpeaking(false);
+        await audio.play();
+      } else {
+        // Fallback to browser Web Speech API
+        if (!window.speechSynthesis) {
+          setSpeaking(false);
+          return;
+        }
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.9;
+        utterance.pitch = 1.1;
+        utterance.onend = () => setSpeaking(false);
+        utterance.onerror = () => setSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+      }
+    } catch {
+      // Last fallback: browser speech
+      if (window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.9;
+        utterance.onend = () => setSpeaking(false);
+        utterance.onerror = () => setSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+      } else {
+        setSpeaking(false);
+      }
+    }
+  }, [speaking]);
 
   const isRunning = loading.agent1 || loading.agent2 || loading.agent3;
 
@@ -220,6 +263,13 @@ export default function Home() {
                 <p className="text-gray-300 italic text-xs border-l-2 border-[#f9a825] pl-2">
                   &ldquo;{agent2Output.existential_monologue}&rdquo;
                 </p>
+                <button
+                  onClick={() => speakMonologue(agent2Output.existential_monologue)}
+                  disabled={speaking}
+                  className="mt-2 flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded border border-[#f9a825]/40 text-[#f9a825] hover:bg-[#f9a825]/10 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <Volume2 size={10} /> {speaking ? "SPEAKING..." : "SPEAK"}
+                </button>
               </div>
             </div>
           )}
