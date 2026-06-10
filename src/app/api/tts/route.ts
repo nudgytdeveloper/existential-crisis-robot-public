@@ -29,10 +29,13 @@ export async function POST(req: NextRequest) {
       outputFormat: "mp3_44100_128",
     });
 
-    // The SDK returns a ReadableStream — collect it into a buffer
+    // The SDK returns a ReadableStream — read it into a buffer
+    const reader = audio.getReader();
     const chunks: Uint8Array[] = [];
-    for await (const chunk of audio) {
-      chunks.push(chunk);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
     }
     const buffer = Buffer.concat(chunks);
     const base64 = buffer.toString("base64");
