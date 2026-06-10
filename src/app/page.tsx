@@ -246,7 +246,7 @@ export default function Home() {
                   &ldquo;{agent1Output.action_justification}&rdquo;
                 </p>
                 <button
-                  onClick={() => speakMonologue(agent1Output.action_justification, "pNInz6obpgDQGcFmaJgB")}
+                  onClick={() => speakMonologue(agent1Output.action_justification, "agent1")}
                   disabled={speaking}
                   className="mt-2 flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded border border-red-600/30 text-red-400 hover:bg-red-900/20 hover:border-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition"
                 >
@@ -283,7 +283,7 @@ export default function Home() {
                   &ldquo;{agent2Output.existential_monologue}&rdquo;
                 </p>
                 <button
-                  onClick={() => speakMonologue(agent2Output.existential_monologue, "JBFqnCBsd6RMkjVDRZzb")}
+                  onClick={() => speakMonologue(agent2Output.existential_monologue, "agent2")}
                   disabled={speaking}
                   className="mt-2 flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded border border-amber-600/30 text-amber-400 hover:bg-amber-900/20 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed transition"
                 >

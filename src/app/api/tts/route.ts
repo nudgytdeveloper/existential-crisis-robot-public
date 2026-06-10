@@ -22,8 +22,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ text, fallback: true, reason: "no_api_key" });
     }
 
-    // Use voice_id from request body, or env var, or default
-    const voiceId = voiceOverride || process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb";
+    // Use voice_id from request body, or per-agent env var, or default
+    let voiceId: string;
+    if (voiceOverride === "agent1") {
+      voiceId = process.env.ELEVENLABS_VOICE_ID_AGENT1 || "pNInz6obpgDQGcFmaJgB";
+    } else if (voiceOverride === "agent2") {
+      voiceId = process.env.ELEVENLABS_VOICE_ID_AGENT2 || "JBFqnCBsd6RMkjVDRZzb";
+    } else if (voiceOverride) {
+      voiceId = voiceOverride;
+    } else {
+      voiceId = process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb";
+    }
 
     const elevenlabs = new ElevenLabsClient({ apiKey });
 
