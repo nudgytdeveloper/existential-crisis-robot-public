@@ -31,7 +31,7 @@ def generate_speech():
     Input JSON:
     {
         "text": "Something feels deeply wrong about this answer...",
-        "voice": "af_heart",  (optional, default af_heart)
+        "voice": "bf_emma",  (optional, default af_heart)
         "speed": 0.9           (optional, default 0.9)
     }
 
@@ -42,7 +42,7 @@ def generate_speech():
         return jsonify({"error": "Missing 'text' field"}), 400
 
     text = data["text"]
-    voice = data.get("voice", "af_heart")
+    voice = data.get("voice", "bf_emma")
     speed = data.get("speed", 0.9)
 
     print(f"[TTS] Generating speech: '{text[:50]}...'")

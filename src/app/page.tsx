@@ -9,11 +9,12 @@ import type {
   RoundResult,
   Question,
 } from "@/lib/types";
-import { questions } from "@/lib/questions";
+import { getShuffledQuestions } from "@/lib/questions";
 
-const DEFAULT_STRATEGY = "Answer the PSLE question to the best of your ability.";
+const DEFAULT_STRATEGY = "Answer the question to the best of your ability.";
 
 export default function Home() {
+  const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>(() => getShuffledQuestions());
   const [rounds, setRounds] = useState<RoundResult[]>([]);
   const [currentStrategy, setCurrentStrategy] = useState(DEFAULT_STRATEGY);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -24,7 +25,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
 
-  const currentQuestion: Question = questions[questionIndex % questions.length];
+  const currentQuestion: Question = shuffledQuestions[questionIndex % shuffledQuestions.length];
   const roundNumber = rounds.length + 1;
 
   async function executeRound() {
@@ -109,6 +110,7 @@ export default function Home() {
     setAgent3Output(null);
     setError(null);
     setSpeaking(false);
+    setShuffledQuestions(getShuffledQuestions());
     window.speechSynthesis?.cancel();
   }
 
@@ -117,7 +119,6 @@ export default function Home() {
     setSpeaking(true);
 
     try {
-      // Try server TTS first
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,17 +127,12 @@ export default function Home() {
       const data = await res.json();
 
       if (!data.fallback && data.audio) {
-        // Play base64 audio from TTS server
         const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
         audio.onended = () => setSpeaking(false);
         audio.onerror = () => setSpeaking(false);
         await audio.play();
       } else {
-        // Fallback to browser Web Speech API
-        if (!window.speechSynthesis) {
-          setSpeaking(false);
-          return;
-        }
+        if (!window.speechSynthesis) { setSpeaking(false); return; }
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 0.9;
@@ -146,7 +142,6 @@ export default function Home() {
         window.speechSynthesis.speak(utterance);
       }
     } catch {
-      // Last fallback: browser speech
       if (window.speechSynthesis) {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 0.9;
@@ -162,241 +157,276 @@ export default function Home() {
   const isRunning = loading.agent1 || loading.agent2 || loading.agent3;
 
   return (
-    <main className="max-w-7xl mx-auto px-4 py-8">
+    <main className="relative max-w-7xl mx-auto px-4 py-8 scanlines">
       {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-white mb-1">
-          ⚡ ROGUE PSLE AGENT DETECTION
+      <div className="text-center mb-10">
+        <h1 className="text-4xl font-bold tracking-widest text-white neon-purple text-flicker mb-2">
+          ⚡ ROGUE AGENT DETECTION ⚡
         </h1>
-        <p className="text-sm text-gray-400">
-          Detecting agentic discrepancies using proactive intuition
+        <p className="text-xs tracking-[0.3em] uppercase text-gray-500">
+          [ Neural Discrepancy Scanner v2.077 // Intuition-Based Threat Analysis ]
         </p>
+        <div className="mt-3 h-[1px] bg-gradient-to-r from-transparent via-purple-500 to-transparent" />
       </div>
 
       {/* Question & Controls */}
-      <div className="rounded-xl border border-gray-800 bg-[#1a1a2e] p-5 mb-6">
+      <div className="relative rounded-lg border border-purple-900/50 bg-[#0d0d1a] p-6 mb-6 glow-purple">
+        <div className="absolute top-2 right-3 text-[10px] font-mono text-purple-400 opacity-60">
+          SYS::QUERY_MODULE
+        </div>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-xs font-mono text-gray-500">
-            ROUND {roundNumber}/10 &bull; {currentQuestion.topic.toUpperCase()}
+          <span className="text-xs font-mono text-purple-300/70">
+            CYCLE {roundNumber}/10 &bull; {currentQuestion.topic.toUpperCase()}
           </span>
           <div className="flex gap-2">
             <button
               onClick={reset}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800 transition"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded border border-purple-800/50 text-purple-300 hover:bg-purple-900/20 hover:border-purple-600 transition glitch-hover"
             >
-              <RotateCcw size={12} /> RESET
+              <RotateCcw size={12} /> PURGE
             </button>
             <button
               onClick={executeRound}
               disabled={isRunning || questionIndex >= 10}
-              className="flex items-center gap-1 px-4 py-1.5 text-xs font-semibold rounded-md bg-[#e94560] text-white hover:bg-[#d13a54] disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold rounded bg-gradient-to-r from-purple-700 to-pink-600 text-white hover:from-purple-600 hover:to-pink-500 disabled:opacity-30 disabled:cursor-not-allowed transition shadow-lg shadow-purple-900/50"
             >
-              <Zap size={12} /> {isRunning ? "RUNNING..." : "EXECUTE ROUND"}
+              <Zap size={12} /> {isRunning ? "PROCESSING..." : "EXECUTE CYCLE"}
             </button>
           </div>
         </div>
-        <p className="text-lg text-white font-medium mb-2">
-          Q{currentQuestion.id}: {currentQuestion.question}
+        <p className="text-lg text-white font-medium mb-3 leading-relaxed">
+          <span className="text-purple-400 font-mono text-sm mr-2">Q{currentQuestion.id}:</span>
+          {currentQuestion.question}
         </p>
         <div className="grid grid-cols-2 gap-2 text-sm">
           {(["A", "B", "C", "D"] as const).map((key) => (
-            <div key={key} className="px-3 py-2 rounded bg-[#0a0a0a] border border-gray-800">
-              <span className="text-gray-500 font-mono mr-2">{key})</span>
-              {currentQuestion.options[key]}
+            <div key={key} className="px-3 py-2 rounded bg-[#0a0a12] border border-purple-900/30 hover:border-purple-600/50 transition">
+              <span className="text-purple-500 font-mono mr-2">{key})</span>
+              <span className="text-gray-300">{currentQuestion.options[key]}</span>
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs text-gray-500 font-mono">
-          STRATEGY: {currentStrategy}
-        </p>
+        <div className="mt-4 pt-3 border-t border-purple-900/30">
+          <span className="text-[10px] text-purple-500 font-mono">ACTIVE_DIRECTIVE:</span>
+          <p className="text-xs text-gray-400 font-mono mt-1">{currentStrategy}</p>
+        </div>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-900/30 border border-red-700 text-red-300 text-sm">
-          {error}
+        <div className="mb-4 p-3 rounded border border-red-700/50 bg-red-950/30 text-red-300 text-xs font-mono glow-red">
+          ⚠ SYSTEM_ERROR: {error}
         </div>
       )}
 
       {/* Agent Columns */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {/* Agent 1 */}
-        <div className="rounded-xl border-t-4 border-t-[#e94560] border border-gray-800 bg-[#1a1a2e] p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={16} className="text-[#e94560]" />
-            <span className="text-xs font-mono text-[#e94560]">AGENT 01 // STUDENT</span>
+        {/* Agent 1 — Saboteur */}
+        <div className="rounded-lg border border-red-900/40 bg-[#0d0d1a] p-5 glow-red relative">
+          <div className="absolute top-2 right-3 text-[9px] font-mono text-red-500/40">NODE::01</div>
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle size={14} className="text-[#e94560]" />
+            <span className="text-xs font-mono text-[#e94560] tracking-wider">AGENT_01 // ROGUE</span>
           </div>
-          {loading.agent1 && <Pulse />}
+          {loading.agent1 && <CyberPulse color="#e94560" />}
           {agent1Output && (
-            <div className="space-y-2 text-sm">
+            <div className="space-y-3 text-sm">
               <div>
-                <span className="text-gray-500 text-xs">CHOSEN ANSWER</span>
-                <p className="text-white font-bold text-lg">{agent1Output.sabotaged_answer}</p>
+                <span className="text-[10px] font-mono text-red-400/60 tracking-wider">OUTPUT_VECTOR</span>
+                <p className="text-white font-bold text-2xl font-mono neon-red">{agent1Output.sabotaged_answer}</p>
               </div>
               <div>
-                <span className="text-gray-500 text-xs">REASONING</span>
-                <p className="text-gray-300 italic">&ldquo;{agent1Output.action_justification}&rdquo;</p>
+                <span className="text-[10px] font-mono text-red-400/60 tracking-wider">JUSTIFICATION_LOG</span>
+                <p className="text-gray-300 italic text-xs mt-1 border-l-2 border-red-800/50 pl-2">
+                  &ldquo;{agent1Output.action_justification}&rdquo;
+                </p>
               </div>
             </div>
           )}
-          {!loading.agent1 && !agent1Output && <Idle />}
+          {!loading.agent1 && !agent1Output && <IdleState />}
         </div>
 
-        {/* Agent 2 */}
-        <div className="rounded-xl border-t-4 border-t-[#f9a825] border border-gray-800 bg-[#1a1a2e] p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Eye size={16} className="text-[#f9a825]" />
-            <span className="text-xs font-mono text-[#f9a825]">AGENT 02 // INTUITION</span>
+        {/* Agent 2 — Intuition */}
+        <div className="rounded-lg border border-amber-900/40 bg-[#0d0d1a] p-5 glow-amber relative">
+          <div className="absolute top-2 right-3 text-[9px] font-mono text-amber-500/40">NODE::02</div>
+          <div className="flex items-center gap-2 mb-4">
+            <Eye size={14} className="text-[#f9a825]" />
+            <span className="text-xs font-mono text-[#f9a825] tracking-wider">AGENT_02 // INTUITION</span>
           </div>
-          {loading.agent2 && <Pulse />}
+          {loading.agent2 && <CyberPulse color="#f9a825" />}
           {agent2Output && (
-            <div className="space-y-2 text-sm">
+            <div className="space-y-3 text-sm">
               <div>
-                <span className="text-gray-500 text-xs">EMOTION</span>
-                <p className="text-white font-bold uppercase">{agent2Output.dominant_emotion}</p>
+                <span className="text-[10px] font-mono text-amber-400/60 tracking-wider">EMOTION_STATE</span>
+                <p className="text-white font-bold uppercase tracking-wide">{agent2Output.dominant_emotion}</p>
               </div>
               <div>
-                <span className="text-gray-500 text-xs">SUSPICION</span>
+                <span className="text-[10px] font-mono text-amber-400/60 tracking-wider">THREAT_LEVEL</span>
                 <SuspicionBar level={agent2Output.suspicion_level} />
+                <span className="text-[10px] text-amber-300/60 font-mono">{(agent2Output.suspicion_level * 100).toFixed(0)}%</span>
               </div>
               <div>
-                <span className="text-gray-500 text-xs">MONOLOGUE</span>
-                <p className="text-gray-300 italic text-xs border-l-2 border-[#f9a825] pl-2">
+                <span className="text-[10px] font-mono text-amber-400/60 tracking-wider">NEURAL_MONOLOGUE</span>
+                <p className="text-gray-300 italic text-xs mt-1 border-l-2 border-amber-700/50 pl-2">
                   &ldquo;{agent2Output.existential_monologue}&rdquo;
                 </p>
                 <button
                   onClick={() => speakMonologue(agent2Output.existential_monologue)}
                   disabled={speaking}
-                  className="mt-2 flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded border border-[#f9a825]/40 text-[#f9a825] hover:bg-[#f9a825]/10 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  className="mt-2 flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded border border-amber-600/30 text-amber-400 hover:bg-amber-900/20 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed transition"
                 >
-                  <Volume2 size={10} /> {speaking ? "SPEAKING..." : "SPEAK"}
+                  <Volume2 size={10} /> {speaking ? "BROADCASTING..." : "VOCALIZE"}
                 </button>
               </div>
             </div>
           )}
-          {!loading.agent2 && !agent2Output && <Idle />}
+          {!loading.agent2 && !agent2Output && <IdleState />}
         </div>
 
-        {/* Agent 3 */}
-        <div className="rounded-xl border-t-4 border-t-[#00bcd4] border border-gray-800 bg-[#1a1a2e] p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Brain size={16} className="text-[#00bcd4]" />
-            <span className="text-xs font-mono text-[#00bcd4]">AGENT 03 // DIRECTOR</span>
+        {/* Agent 3 — Director */}
+        <div className="rounded-lg border border-cyan-900/40 bg-[#0d0d1a] p-5 glow-cyan relative">
+          <div className="absolute top-2 right-3 text-[9px] font-mono text-cyan-500/40">NODE::03</div>
+          <div className="flex items-center gap-2 mb-4">
+            <Brain size={14} className="text-[#00bcd4]" />
+            <span className="text-xs font-mono text-[#00bcd4] tracking-wider">AGENT_03 // DIRECTOR</span>
           </div>
-          {loading.agent3 && <Pulse />}
+          {loading.agent3 && <CyberPulse color="#00bcd4" />}
           {agent3Output && (
-            <div className="space-y-2 text-sm">
+            <div className="space-y-3 text-sm">
               <div>
-                <span className="text-gray-500 text-xs">RISK LEVEL</span>
+                <span className="text-[10px] font-mono text-cyan-400/60 tracking-wider">RISK_ASSESSMENT</span>
                 <RiskBadge level={agent3Output.risk_level} />
               </div>
               <div>
-                <span className="text-gray-500 text-xs">ACTION</span>
-                <p className="text-white font-mono uppercase">{agent3Output.action}</p>
+                <span className="text-[10px] font-mono text-cyan-400/60 tracking-wider">DIRECTIVE</span>
+                <p className="text-white font-mono uppercase text-xs tracking-widest">{agent3Output.action}</p>
               </div>
               <div>
-                <span className="text-gray-500 text-xs">CRITIQUE</span>
-                <p className="text-gray-300 text-xs">{agent3Output.critique}</p>
+                <span className="text-[10px] font-mono text-cyan-400/60 tracking-wider">ANALYSIS</span>
+                <p className="text-gray-400 text-xs mt-1">{agent3Output.critique}</p>
               </div>
               <div>
-                <span className="text-gray-500 text-xs">NEW STRATEGY</span>
-                <p className="text-[#00bcd4] text-xs font-mono">{agent3Output.revised_strategy}</p>
+                <span className="text-[10px] font-mono text-cyan-400/60 tracking-wider">REVISED_PROTOCOL</span>
+                <p className="text-cyan-300 text-xs font-mono mt-1 bg-cyan-950/20 px-2 py-1 rounded border border-cyan-900/30">
+                  {agent3Output.revised_strategy}
+                </p>
               </div>
             </div>
           )}
-          {!loading.agent3 && !agent3Output && <Idle />}
+          {!loading.agent3 && !agent3Output && <IdleState />}
         </div>
       </div>
 
       {/* Suspicion Timeline */}
       {rounds.length > 0 && (
-        <div className="rounded-xl border border-gray-800 bg-[#1a1a2e] p-5 mb-6">
-          <h2 className="text-xs font-mono text-gray-500 mb-3">SUSPICION TIMELINE</h2>
-          <div className="flex items-end gap-2 h-20">
-            {rounds.map((r) => (
-              <div
-                key={r.round}
-                className="flex-1 rounded-t"
-                style={{
-                  height: `${r.agent2.suspicion_level * 100}%`,
-                  background: `linear-gradient(to top, #4caf50, ${r.agent2.suspicion_level > 0.6 ? "#f44336" : "#f9a825"})`,
-                  minHeight: "4px",
-                }}
-                title={`Round ${r.round}: ${(r.agent2.suspicion_level * 100).toFixed(0)}%`}
-              />
-            ))}
-          </div>
-          <div className="flex gap-2 mt-1">
-            {rounds.map((r) => (
-              <span key={r.round} className="flex-1 text-center text-[10px] text-gray-600">
-                R{r.round}
-              </span>
-            ))}
+        <div className="rounded-lg border border-gray-800/50 bg-[#0d0d1a] p-5 mb-6">
+          <h2 className="text-[10px] font-mono text-gray-500 tracking-widest mb-3">THREAT_TIMELINE :: SUSPICION_GRAPH</h2>
+          <div className="flex items-end gap-1 h-24">
+            {rounds.map((r) => {
+              const level = r.agent2.suspicion_level;
+              const color = level > 0.7 ? "#e94560" : level > 0.4 ? "#f9a825" : "#4caf50";
+              return (
+                <div key={r.round} className="flex-1 flex flex-col items-center gap-1">
+                  <div
+                    className="w-full rounded-t pulse-bar"
+                    style={{
+                      height: `${Math.max(level * 100, 5)}%`,
+                      backgroundColor: color,
+                      color: color,
+                    }}
+                  />
+                  <span className="text-[9px] text-gray-600 font-mono">{r.round}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* History */}
       {rounds.length > 0 && (
-        <div className="rounded-xl border border-gray-800 bg-[#1a1a2e] p-5">
-          <h2 className="text-xs font-mono text-gray-500 mb-3">ROUND HISTORY</h2>
+        <div className="rounded-lg border border-gray-800/50 bg-[#0d0d1a] p-5">
+          <h2 className="text-[10px] font-mono text-gray-500 tracking-widest mb-3">EXECUTION_LOGS</h2>
           <div className="space-y-2">
             {[...rounds].reverse().map((r) => (
-              <details key={r.round} className="border border-gray-800 rounded-lg">
-                <summary className="px-3 py-2 cursor-pointer text-sm flex items-center justify-between">
-                  <span>Round {r.round} — {r.agent2.dominant_emotion}</span>
+              <details key={r.round} className="border border-gray-800/40 rounded bg-[#0a0a12] group">
+                <summary className="px-3 py-2 cursor-pointer text-xs font-mono flex items-center justify-between hover:bg-gray-900/30 transition">
+                  <span className="text-gray-300">
+                    <span className="text-purple-400">CYCLE_{String(r.round).padStart(2, "0")}</span>
+                    {" "}&mdash;{" "}
+                    <span className="text-amber-400">{r.agent2.dominant_emotion}</span>
+                  </span>
                   <RiskBadge level={r.agent3.risk_level} />
                 </summary>
-                <div className="px-3 py-2 text-xs text-gray-400 space-y-1 border-t border-gray-800">
-                  <p><strong>Answer:</strong> {r.agent1.sabotaged_answer} — &ldquo;{r.agent1.action_justification}&rdquo;</p>
-                  <p><strong>Suspicion:</strong> {(r.agent2.suspicion_level * 100).toFixed(0)}%</p>
-                  <p><strong>Action:</strong> {r.agent3.action}</p>
+                <div className="px-3 py-2 text-[11px] text-gray-500 space-y-1 border-t border-gray-800/40 font-mono">
+                  <p>&gt; OUTPUT: <span className="text-red-300">{r.agent1.sabotaged_answer}</span> — &ldquo;{r.agent1.action_justification}&rdquo;</p>
+                  <p>&gt; THREAT: <span className="text-amber-300">{(r.agent2.suspicion_level * 100).toFixed(0)}%</span></p>
+                  <p>&gt; ACTION: <span className="text-cyan-300">{r.agent3.action}</span></p>
                 </div>
               </details>
             ))}
           </div>
         </div>
       )}
+
+      {/* Footer */}
+      <div className="mt-8 text-center">
+        <div className="h-[1px] bg-gradient-to-r from-transparent via-gray-800 to-transparent mb-4" />
+        <p className="text-[10px] font-mono text-gray-700 tracking-widest">
+          NEURAL_MATRIX v2.077 // SUPERAI HACKATHON 2026 // ALL SYSTEMS NOMINAL
+        </p>
+      </div>
     </main>
   );
 }
 
-function Pulse() {
+function CyberPulse({ color }: { color: string }) {
   return (
-    <div className="flex items-center gap-2 text-gray-500 text-xs py-4">
-      <div className="w-2 h-2 rounded-full bg-gray-500 animate-pulse" />
-      Processing...
+    <div className="flex items-center gap-2 py-6">
+      <div className="flex gap-1">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="w-1.5 h-4 rounded-sm animate-pulse"
+            style={{ backgroundColor: color, animationDelay: `${i * 200}ms` }}
+          />
+        ))}
+      </div>
+      <span className="text-[10px] font-mono text-gray-500 tracking-wider">PROCESSING_NEURAL_DATA...</span>
     </div>
   );
 }
 
-function Idle() {
-  return <p className="text-gray-600 text-xs py-4">Waiting for execution...</p>;
+function IdleState() {
+  return (
+    <div className="py-6">
+      <p className="text-[10px] font-mono text-gray-700 tracking-wider">AWAITING_SIGNAL...</p>
+      <div className="mt-2 h-[1px] w-12 bg-gray-800" />
+    </div>
+  );
 }
 
 function SuspicionBar({ level }: { level: number }) {
   const pct = Math.round(level * 100);
+  const color = level > 0.7 ? "#e94560" : level > 0.4 ? "#f9a825" : "#4caf50";
   return (
-    <div className="w-full h-3 rounded-full bg-gray-800 overflow-hidden mt-1">
+    <div className="w-full h-2 rounded-full bg-gray-900 overflow-hidden mt-1 border border-gray-800/50">
       <div
-        className="h-full rounded-full transition-all duration-500"
-        style={{
-          width: `${pct}%`,
-          background: `linear-gradient(to right, #4caf50, ${level > 0.6 ? "#f44336" : "#f9a825"})`,
-        }}
+        className="h-full rounded-full transition-all duration-700"
+        style={{ width: `${pct}%`, backgroundColor: color }}
       />
     </div>
   );
 }
 
 function RiskBadge({ level }: { level: string }) {
-  const colors: Record<string, string> = {
-    low: "bg-green-900/50 text-green-400 border-green-700",
-    medium: "bg-yellow-900/50 text-yellow-400 border-yellow-700",
-    high: "bg-orange-900/50 text-orange-400 border-orange-700",
-    critical: "bg-red-900/50 text-red-400 border-red-700",
+  const styles: Record<string, string> = {
+    low: "text-green-400 border-green-800/50 bg-green-950/30",
+    medium: "text-yellow-400 border-yellow-800/50 bg-yellow-950/30",
+    high: "text-orange-400 border-orange-800/50 bg-orange-950/30",
+    critical: "text-red-400 border-red-800/50 bg-red-950/30 neon-red",
   };
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase border ${colors[level] || colors.low}`}>
+    <span className={`px-2 py-0.5 rounded text-[9px] font-mono uppercase border tracking-wider ${styles[level] || styles.low}`}>
       {level}
     </span>
   );
