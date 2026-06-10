@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "ai": "^6.0.198",
+    "caniuse-lite": "^1.0.30001797",
     "lucide-react": "^1.17.0",
     "next": "16.2.7",
     "pdf-parse": "^2.4.5",
