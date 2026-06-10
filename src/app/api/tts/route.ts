@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
-
+import { ElevenLabsClient, play } from '@elevenlabs/elevenlabs-js';
 /**
  * TTS endpoint using ElevenLabs official SDK.
  * Returns base64-encoded mp3 audio or signals fallback to browser speech.
