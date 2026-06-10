@@ -1,0 +1,6 @@
+node_modules
+.next
+.env.local
+kokoro-v1.0.onnx
+voices-v1.0.bin
+*.wav
