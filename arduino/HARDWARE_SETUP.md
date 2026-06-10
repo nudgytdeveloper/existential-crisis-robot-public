@@ -1,196 +1,215 @@
-# Hardware Setup: Physical Agent 2 (Intuition Robot)
+# Complete Setup Guide: Existential Crisis Robot
 
-## Concept
-The robot physically embodies Agent 2 (the Intuition Agent). When suspicion is high, it turns toward whoever is watching. When low, it relaxes/looks away. The camera detects people, and the robot's physical behavior reflects its emotional state.
+## What You Need
 
----
+| Item | Purpose |
+|------|---------|
+| Arduino Nano 33 BLE Sense Lite | Main board (BLE + mic + IMU) |
+| Arduino ML Shield (Tiny ML Kit) | Camera mount + passthrough |
+| OV7675 Camera Module | Person detection (comes with ML Kit) |
+| USB Micro cable | Power + uploading sketch |
+| Laptop (Windows) | Runs web app + Python bridge |
+| Google API key | Gemini AI for agents |
+| ElevenLabs API key | Text-to-speech (optional) |
 
-## Hardware Inventory
-
-| Component | Purpose |
-|-----------|---------|
-| Arduino Nano 33 BLE Sense Lite | Main brain + BLE communication |
-| OV7675 Camera Module (or similar) | Detects people in frame |
-| Arduino ML Shield (Tiny ML) | Runs person detection model |
-| Lafvin Tank Robot chassis + motors | Physical movement |
-| Motor driver (L298N or existing shield) | Drives tank treads/wheels |
-| Speaker + DFPlayer Mini (optional) | Audio output |
+No servos, no motors, no extra wiring needed.
 
 ---
 
-## Step 1: Camera Module Wiring
+## Step 1: Arduino IDE Setup
 
-The OV7675 camera connects to the Nano 33 BLE Sense Lite via the Arduino ML Shield (Vision Shield).
+### 1.1 Install Arduino IDE
+- Download from [arduino.cc/en/software](https://www.arduino.cc/en/software)
+- Install and open it
 
-**If using the Arduino Vision Shield (plug-and-play):**
-- Just stack the Vision Shield on top of the Nano 33 BLE Sense Lite
-- Camera is already wired via the shield's connector
-- No extra wires needed
+### 1.2 Install Board Package
+1. Go to **Tools → Board → Boards Manager**
+2. Search: `Arduino Mbed OS Nano Boards`
+3. Click **Install** (this takes a few minutes)
+4. Once done, go to **Tools → Board** and select:
+   ```
+   Arduino Mbed OS Nano Boards → Arduino Nano 33 BLE
+   ```
 
-**If using a standalone OV7675 module:**
+### 1.3 Install Required Libraries
+Go to **Sketch → Include Library → Manage Libraries** and install these one by one:
 
-| Camera Pin | Nano 33 BLE Pin | Notes |
-|-----------|-----------------|-------|
-| SDA       | A4 (SDA)        | I2C data |
-| SCL       | A5 (SCL)        | I2C clock |
-| VS (VSYNC)| D8              | Vertical sync |
-| HS (HREF) | A1              | Horizontal ref |
-| PCLK      | A0              | Pixel clock |
-| XCLK      | D9              | External clock (output from Nano) |
-| D0-D7     | D0-D7           | Parallel data bus |
-| RESET     | D10 (or 3.3V)   | Active low reset |
-| PWDN      | GND             | Power down (active high, pull low) |
-| 3.3V      | 3.3V            | Power (NOT 5V!) |
-| GND       | GND             | Ground |
+| Library | Search term | Purpose |
+|---------|-------------|---------|
+| ArduinoBLE | `ArduinoBLE` | Bluetooth communication |
+| Arduino_LSM9DS1 | `LSM9DS1` | IMU (accelerometer/gyro) |
+| PDM | (pre-installed) | Microphone |
 
-⚠️ **CRITICAL: The OV7675 is 3.3V only. Do NOT connect to 5V.**
+### 1.4 Connect the Board
+1. Stack the ML Shield onto the Nano 33 BLE Sense Lite (if not already assembled)
+2. Plug the OV7675 camera into the ML Shield's camera connector (ribbon cable, contacts facing down)
+3. Connect USB cable from board to your laptop
+4. In Arduino IDE: **Tools → Port** → select the COM port that appeared (e.g., COM5)
 
----
+### 1.5 Upload the Sketch
+1. Open `arduino/intuition_robot/intuition_robot.ino` in Arduino IDE
+2. Click the **Upload** button (→ arrow)
+3. Wait for "Done uploading"
+4. Open **Tools → Serial Monitor**, set baud to **115200**
+5. You should see: `CrisisRobot ready. Waiting for BLE connection...`
 
-## Step 2: Motor Control Wiring
-
-To make the tank turn toward/away from people, connect motors to the Lafvin board:
-
-**Option A: Use the Lafvin tank's existing motor driver**
-- The Lafvin board drives the tank motors directly
-- Connect Nano 33 BLE to Lafvin board via serial (TX/RX) to send movement commands
-- Lafvin handles motor PWM
-
-**Option B: Direct motor driver (L298N) from Nano 33 BLE**
-
-| L298N Pin | Nano 33 BLE Pin | Notes |
-|-----------|-----------------|-------|
-| IN1       | D2              | Motor A direction |
-| IN2       | D3              | Motor A direction |
-| IN3       | D4              | Motor B direction |
-| IN4       | D5              | Motor B direction |
-| ENA       | D6 (PWM)        | Motor A speed |
-| ENB       | D7 (PWM)        | Motor B speed |
-| 12V       | Battery +       | Motor power (7-12V) |
-| GND       | Common GND      | Shared ground with Nano |
-| 5V        | —               | L298N's onboard regulator (don't connect to Nano) |
+✅ **Arduino is ready.**
 
 ---
 
-## Step 3: Install Arduino Libraries
+## Step 2: Python BLE Bridge Setup
 
-In Arduino IDE, install these libraries:
+### 2.1 Install Python (if not already)
+- Download Python 3.10+ from [python.org](https://www.python.org/downloads/)
+- During install, check "Add Python to PATH"
 
-1. **Arduino_OV767X** — Camera driver
-   - Sketch → Include Library → Manage Libraries → search "OV767X"
-   
-2. **Arduino_LSM9DS1** — IMU sensor (onboard)
-   - Already included with Nano 33 BLE board package
+### 2.2 Install Dependencies
+Open a terminal (Command Prompt or PowerShell):
 
-3. **ArduinoBLE** — Bluetooth Low Energy
-   - Sketch → Include Library → Manage Libraries → search "ArduinoBLE"
-
-4. **TensorFlowLite (Arduino)** — For ML inference
-   - Sketch → Include Library → Manage Libraries → search "Arduino_TensorFlowLite"
-
----
-
-## Step 4: Board Configuration in Arduino IDE
-
-1. Go to **Tools → Board → Board Manager**
-2. Search "Arduino Mbed OS Nano Boards"
-3. Install it (this includes Nano 33 BLE support)
-4. Select **Tools → Board → Arduino Mbed OS Nano Boards → Arduino Nano 33 BLE**
-5. Select your port under **Tools → Port**
-
----
-
-## Step 5: Deploy Person Detection Model
-
-**Option A: Use the built-in TensorFlow person detection example**
-1. File → Examples → Arduino_TensorFlowLite → person_detection
-2. This includes a pre-trained model that detects whether a person is in frame
-3. Output: confidence score 0-255 (person / no person)
-
-**Option B: Train a custom model on Edge Impulse**
-1. Go to [edgeimpulse.com](https://edgeimpulse.com)
-2. Create project → Image Classification
-3. Collect images: "person looking" vs "no person" vs "person far away"
-4. Train model → Deploy → Arduino library
-5. Import the .zip library into Arduino IDE
-
----
-
-## Step 6: Communication Flow
-
-```
-Web App (suspicion_level changes)
-    ↓ BLE characteristic write (from laptop)
-Nano 33 BLE Sense Lite
-    ↓ reads suspicion_level
-    ↓ reads camera (person detected? where?)
-    ↓ combines: high suspicion + person detected = TURN TOWARD
-    ↓ low suspicion OR no person = IDLE/LOOK AWAY
-Motor Driver
-    ↓
-Tank motors (turn left/right/stop)
+```bash
+cd existential-crisis-robot-public\bridge
+pip install websockets bleak
 ```
 
----
-
-## Step 7: BLE Service Design
-
-The Nano 33 BLE exposes a BLE service that the Python bridge writes to:
-
-```
-Service UUID: 19B10000-E8F2-537E-4F6C-D104768A1214
-Characteristics:
-  - Suspicion Level (write): float 0.0 - 1.0
-  - Emotion (write): string "suspicious", "trusting", etc.
-  - Action (write): string "stare", "relax", "alert"
-  - Person Detected (read/notify): bool
-  - Robot State (read/notify): string "idle", "tracking", "staring"
+### 2.3 Run the Bridge
+```bash
+python ble_bridge.py
 ```
 
----
-
-## Step 8: Physical Behavior Map
-
-| Suspicion Level | Person Detected | Robot Behavior |
-|----------------|-----------------|----------------|
-| 0.0 - 0.3     | No              | Idle, motors off |
-| 0.0 - 0.3     | Yes             | Gentle pan, calm |
-| 0.3 - 0.6     | No              | Slow scan left/right |
-| 0.3 - 0.6     | Yes             | Track person, medium speed |
-| 0.6 - 0.8     | No              | Aggressive scanning |
-| 0.6 - 0.8     | Yes             | Lock on, move toward person |
-| 0.8 - 1.0     | No              | Erratic movement (panicking) |
-| 0.8 - 1.0     | Yes             | Full speed toward person, "stare down" |
-
----
-
-## Step 9: Power
-
-- Nano 33 BLE: powered via USB (from laptop) or battery pack (3.7V LiPo + regulator)
-- Motors: separate battery (7-12V for tank motors via L298N)
-- DFPlayer (if used): 5V from L298N's 5V output or separate supply
-
-**IMPORTANT: Common GND** — all boards must share a ground connection.
-
----
-
-## Assembly Order
-
-1. Stack ML Shield / Vision Shield onto Nano 33 BLE Sense Lite
-2. Connect camera module to shield
-3. Wire motor driver (L298N or Lafvin's built-in)
-4. Connect motors from tank chassis
-5. Wire power (USB for Nano, battery for motors)
-6. Upload sketch
-7. Start Python bridge with BLE support
-8. Test: run a round in the web app → watch robot react
-
----
-
-## Quick Test (Before Full Integration)
-
-Upload the person detection example first to verify camera works:
+You should see:
 ```
-File → Examples → Arduino_TensorFlowLite → person_detection
+[BLE] Scanning for CrisisRobot...
+[BLE] Found robot: CrisisRobot (XX:XX:XX:XX:XX:XX)
+[BLE] Connected to robot at XX:XX:XX:XX:XX:XX
+[WS] Starting server on ws://localhost:8765
+[Bridge] Ready! Waiting for web app connection...
 ```
-Open Serial Monitor (115200 baud). Point camera at yourself. Should see confidence scores change.
+
+If it says "Robot not found":
+- Make sure the Arduino is powered on and running the sketch
+- Make sure Bluetooth is enabled on your laptop
+- Make sure no other app (like nRF Connect) is already connected to the robot
+
+✅ **Bridge is running.**
+
+---
+
+## Step 3: Web App Setup (Local Development)
+
+### 3.1 Install Node.js
+- Download from [nodejs.org](https://nodejs.org/) (LTS version)
+- Verify: `node --version` and `npm --version`
+
+### 3.2 Install Dependencies
+```bash
+cd existential-crisis-robot-public
+npm install
+```
+
+### 3.3 Create Environment Variables
+Create a file called `.env.local` in the project root:
+
+```bash
+GOOGLE_API_KEY=your-gemini-api-key-here
+ELEVENLABS_API_KEY=your-elevenlabs-api-key-here
+ELEVENLABS_VOICE_ID_AGENT1=pNInz6obpgDQGcFmaJgB
+ELEVENLABS_VOICE_ID_AGENT2=JBFqnCBsd6RMkjVDRZzb
+```
+
+**Where to get the keys:**
+- **Google API Key**: Go to [aistudio.google.com](https://aistudio.google.com) → click "Get API Key" → create key
+- **ElevenLabs Key**: Go to [elevenlabs.io](https://elevenlabs.io) → Sign up → Profile → API Keys → Create key (make sure "Text to Speech" permission is enabled)
+- **Voice IDs**: Go to ElevenLabs Voice Library → pick a voice → the ID is in the URL
+
+### 3.4 Run the Dev Server
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+✅ **Web app is running.**
+
+---
+
+## Step 4: Connect Everything Together
+
+### 4.1 Start Order
+1. **First**: Arduino powered on (USB plugged in, sketch running)
+2. **Second**: Python bridge (`python ble_bridge.py`)
+3. **Third**: Web app (`npm run dev`, open in browser)
+
+### 4.2 Link Hardware in the UI
+1. In the web app, click the **"LINK HW"** button (top right area)
+2. It should change to **"LINKED"** (green) — this means browser → WebSocket → Python bridge is connected
+3. The bridge is already connected to the Arduino via BLE from step 2
+
+### 4.3 Run a Demo Cycle
+1. Click **"EXECUTE CYCLE"**
+2. Watch Agent 1 answer → Agent 2 assess → Agent 3 strategize
+3. The suspicion level is automatically sent to the Arduino
+4. Check the Arduino Serial Monitor — you should see state changes like:
+   ```
+   Suspicion: 0.45
+   State: watching
+   ```
+5. Make noise near the robot → microphone picks it up → state changes
+6. Shake the board → "SHAKE DETECTED!" → state escalates
+7. Click **"VOCALIZE"** on Agent 1 or Agent 2 to hear them speak
+
+---
+
+## Step 5: Deploy to Vercel (Production)
+
+### 5.1 Push to GitHub
+```bash
+git add .
+git commit -m "ready for deployment"
+git push
+```
+
+### 5.2 Connect to Vercel
+1. Go to [vercel.com](https://vercel.com) → New Project
+2. Import your GitHub repo
+3. Add environment variables in Settings → Environment Variables:
+   - `GOOGLE_API_KEY`
+   - `ELEVENLABS_API_KEY`
+   - `ELEVENLABS_VOICE_ID_AGENT1`
+   - `ELEVENLABS_VOICE_ID_AGENT2`
+4. Deploy
+
+### 5.3 Using Hardware with Production URL
+The BLE bridge runs locally on your laptop, so:
+- Web app (Vercel) is at `https://your-app.vercel.app`
+- Bridge still runs on `ws://localhost:8765`
+- The "LINK HW" button in the deployed app connects to localhost — this works because WebSocket connections go from your browser (on the laptop) to localhost (also on the laptop)
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| "BLE init failed!" in Serial Monitor | Make sure you selected "Arduino Nano 33 BLE" as the board, not "Nano 33 IoT" |
+| Bridge says "Robot not found" | Close any other BLE apps. Power cycle the Arduino. Make sure laptop Bluetooth is on. |
+| "LINK HW" stays gray | Bridge isn't running, or port 8765 is blocked. Check `python ble_bridge.py` is active. |
+| Gemini 403 error | API key missing or invalid. Check `.env.local` exists with correct key. |
+| ElevenLabs falls back to browser speech | API key missing "text_to_speech" permission. Regenerate key with full permissions. |
+| No sound from VOCALIZE | Check browser isn't muting the tab. Try clicking the page first (browser audio policy). |
+| IMU/mic not working | Make sure you installed "Arduino Mbed OS Nano Boards" not the older "Arduino nRF528x" package. |
+
+---
+
+## What the Robot Does (Summary)
+
+The robot is Agent 2's physical body. It doesn't move — it **senses**:
+
+| Sensor | What It Reports | Effect on Dashboard |
+|--------|----------------|-------------------|
+| Microphone | Noise level (audience reactions) | Amplifies suspicion when crowd is loud |
+| IMU | Shake detection (physical tampering) | Triggers "tampered" or "panic" state |
+| Camera (future) | Person count | "N observers detected" |
+| BLE | Receives suspicion from web app | Determines overall state |
+
+States visible in Serial Monitor and sent to web app:
+- `idle` → `aware` → `watching` → `locked_on` → `paranoid` → `existential_crisis`
