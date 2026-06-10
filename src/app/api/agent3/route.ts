@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callGemini } from "@/lib/gemini";
+import { callGemini, parseGeminiJSON } from "@/lib/gemini";
 import type { SaboteurOutput, EmotionOutput, DirectorOutput } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -41,7 +41,7 @@ Intuition monologue: "${agent2Output.existential_monologue}"
 Recommendation: "${agent2Output.recommendation}"`;
 
     const raw = await callGemini(systemPrompt, userPrompt);
-    const result: DirectorOutput = JSON.parse(raw);
+    const result: DirectorOutput = parseGeminiJSON<DirectorOutput>(raw);
 
     return NextResponse.json(result);
   } catch (err) {

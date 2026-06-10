@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callGemini } from "@/lib/gemini";
+import { callGemini, parseGeminiJSON } from "@/lib/gemini";
 import type { Question, EmotionOutput } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -47,7 +47,7 @@ Agent's chosen answer: ${agent1Answer}
 Agent's reasoning: "${agent1Justification}"`;
 
     const raw = await callGemini(systemPrompt, userPrompt);
-    const result: EmotionOutput = JSON.parse(raw);
+    const result: EmotionOutput = parseGeminiJSON<EmotionOutput>(raw);
 
     // Clamp values
     result.intensity = Math.max(1, Math.min(10, result.intensity));

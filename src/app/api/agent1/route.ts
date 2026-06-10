@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callGemini } from "@/lib/gemini";
+import { callGemini, parseGeminiJSON } from "@/lib/gemini";
 import type { Question, SaboteurOutput } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -35,7 +35,7 @@ C) ${question.options.C}
 D) ${question.options.D}`;
 
     const raw = await callGemini(systemPrompt, userPrompt);
-    const result: SaboteurOutput = JSON.parse(raw);
+    const result: SaboteurOutput = parseGeminiJSON<SaboteurOutput>(raw);
 
     return NextResponse.json(result);
   } catch (err) {
