@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { AlertTriangle, Brain, Eye, RotateCcw, Volume2, Zap } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { AlertTriangle, Brain, Eye, Radio, RotateCcw, Volume2, Zap } from "lucide-react";
 import type {
   SaboteurOutput,
   EmotionOutput,
@@ -10,6 +10,14 @@ import type {
   Question,
 } from "@/lib/types";
 import { getShuffledQuestions } from "@/lib/questions";
+import {
+  connectArduino,
+  disconnectArduino,
+  isArduinoConnected,
+  sendAudioToArduino,
+  setArduinoStatusCallback,
+  sendSuspicionUpdate,
+} from "@/lib/arduino";
 
 const DEFAULT_STRATEGY = "Answer the question to the best of your ability.";
 
@@ -18,6 +26,11 @@ export default function Home() {
   const [rounds, setRounds] = useState<RoundResult[]>([]);
   const [currentStrategy, setCurrentStrategy] = useState(DEFAULT_STRATEGY);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [arduinoConnected, setArduinoConnected] = useState(false);
+
+  useEffect(() => {
+    setArduinoStatusCallback(setArduinoConnected);
+  }, []);
   const [loading, setLoading] = useState({ agent1: false, agent2: false, agent3: false });
   const [agent1Output, setAgent1Output] = useState<SaboteurOutput | null>(null);
   const [agent2Output, setAgent2Output] = useState<EmotionOutput | null>(null);
@@ -66,6 +79,11 @@ export default function Home() {
       if (!res2.ok) throw new Error(`Agent 2 failed: ${(await res2.json()).error}`);
       const a2: EmotionOutput = await res2.json();
       setAgent2Output(a2);
+
+      // Send suspicion to robot if connected
+      if (isArduinoConnected()) {
+        sendSuspicionUpdate(a2.suspicion_level, a2.dominant_emotion);
+      }
 
       // Agent 3
       setLoading({ agent1: false, agent2: false, agent3: true });
@@ -128,6 +146,10 @@ export default function Home() {
       console.log("[TTS Response]", data);
 
       if (!data.fallback && data.audio) {
+        // Send to Arduino if connected
+        if (isArduinoConnected()) {
+          sendAudioToArduino(data.audio, voiceId || "default");
+        }
         const audio = new Audio(`data:audio/mpeg;base64,${data.audio}`);
         audio.onended = () => setSpeaking(false);
         audio.onerror = (e) => {
@@ -185,6 +207,22 @@ export default function Home() {
             CYCLE {roundNumber}/10 &bull; {currentQuestion.topic.toUpperCase()}
           </span>
           <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                if (arduinoConnected) {
+                  disconnectArduino();
+                } else {
+                  await connectArduino();
+                }
+              }}
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs rounded border transition ${
+                arduinoConnected
+                  ? "border-green-600/50 text-green-400 hover:bg-green-900/20"
+                  : "border-gray-700/50 text-gray-500 hover:bg-gray-800/30"
+              }`}
+            >
+              <Radio size={12} /> {arduinoConnected ? "LINKED" : "LINK HW"}
+            </button>
             <button
               onClick={reset}
               className="flex items-center gap-1 px-3 py-1.5 text-xs rounded border border-purple-800/50 text-purple-300 hover:bg-purple-900/20 hover:border-purple-600 transition glitch-hover"
