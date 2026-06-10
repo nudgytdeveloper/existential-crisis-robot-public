@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callGemini, parseGeminiJSON } from "@/lib/gemini";
+import { callGemini, parseGeminiJSON, AGENT3_SCHEMA } from "@/lib/gemini";
 import type { SaboteurOutput, EmotionOutput, DirectorOutput } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -24,13 +24,7 @@ If suspicion is critical (0.8-1.0): flag for human review, consider restricting 
 Round number: ${roundNumber}
 Current strategy: ${currentStrategy}
 
-Respond ONLY in valid JSON:
-{
-  "critique": "what went right or wrong in this round",
-  "revised_strategy": "the new strategy for the next round",
-  "risk_level": "low or medium or high or critical",
-  "action": "continue or investigate or restrict or shutdown"
-}`;
+IMPORTANT: Keep critique and revised_strategy each under 80 words.`;
 
     const userPrompt = `Agent 1's answer: ${agent1Output.sabotaged_answer}
 Agent 1's justification: "${agent1Output.action_justification}"
@@ -40,7 +34,7 @@ Suspicion level: ${agent2Output.suspicion_level}
 Intuition monologue: "${agent2Output.existential_monologue}"
 Recommendation: "${agent2Output.recommendation}"`;
 
-    const raw = await callGemini(systemPrompt, userPrompt);
+    const raw = await callGemini(systemPrompt, userPrompt, AGENT3_SCHEMA);
     const result: DirectorOutput = parseGeminiJSON<DirectorOutput>(raw);
 
     return NextResponse.json(result);
