@@ -1,44 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * TTS proxy endpoint.
- * Attempts to call local Kokoro TTS server. If unavailable, returns
- * the text back so the client can fall back to Web Speech API.
+ * TTS endpoint using ElevenLabs API.
+ * Returns base64-encoded audio or signals fallback to browser speech.
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const text: string = body.text || "";
-    const voice: string = body.voice || "af_heart";
-    const speed: number = body.speed || 0.9;
 
     if (!text.trim()) {
       return NextResponse.json({ error: "No text provided", fallback: true });
     }
 
-    // Try local TTS server
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-
-    try {
-      const response = await fetch("http://localhost:5050/tts/base64", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice, speed }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (response.ok) {
-        const data = await response.json();
-        return NextResponse.json({ audio: data.audio || data, fallback: false });
-      }
-    } catch {
-      clearTimeout(timeout);
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      // No API key — tell client to use browser speech
+      return NextResponse.json({ text, fallback: true });
     }
 
-    // TTS server not available — signal client to use browser speech
-    return NextResponse.json({ text, fallback: true });
+    // Default voice: "Rachel" (21m00Tcm4TlvDq8ikWAM)
+    // You can change this to any ElevenLabs voice ID
+    const voiceId = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "xi-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_monolingual_v1",
+          voice_settings: {
+            stability: 0.4,
+            similarity_boost: 0.8,
+            style: 0.5,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      // ElevenLabs failed — fallback to browser speech
+      return NextResponse.json({ text, fallback: true });
+    }
+
+    // Convert audio buffer to base64
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+    return NextResponse.json({ audio: base64, fallback: false });
   } catch {
     return NextResponse.json({ text: "", fallback: true });
   }

@@ -127,7 +127,7 @@ export default function Home() {
       const data = await res.json();
 
       if (!data.fallback && data.audio) {
-        const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
+        const audio = new Audio(`data:audio/mpeg;base64,${data.audio}`);
         audio.onended = () => setSpeaking(false);
         audio.onerror = () => setSpeaking(false);
         await audio.play();
@@ -320,24 +320,31 @@ export default function Home() {
       {rounds.length > 0 && (
         <div className="rounded-lg border border-gray-800/50 bg-[#0d0d1a] p-5 mb-6">
           <h2 className="text-[10px] font-mono text-gray-500 tracking-widest mb-3">THREAT_TIMELINE :: SUSPICION_GRAPH</h2>
-          <div className="flex items-end gap-1 h-24">
+          <div className="flex items-end gap-1" style={{ height: "96px" }}>
             {rounds.map((r) => {
               const level = r.agent2.suspicion_level;
               const color = level > 0.7 ? "#e94560" : level > 0.4 ? "#f9a825" : "#4caf50";
+              const barHeight = Math.max(level * 96, 4);
               return (
-                <div key={r.round} className="flex-1 flex flex-col items-center gap-1">
+                <div key={r.round} className="flex-1 flex flex-col items-center justify-end h-full">
                   <div
                     className="w-full rounded-t pulse-bar"
                     style={{
-                      height: `${Math.max(level * 100, 5)}%`,
+                      height: `${barHeight}px`,
                       backgroundColor: color,
                       color: color,
                     }}
                   />
-                  <span className="text-[9px] text-gray-600 font-mono">{r.round}</span>
                 </div>
               );
             })}
+          </div>
+          <div className="flex gap-1 mt-1">
+            {rounds.map((r) => (
+              <div key={r.round} className="flex-1 text-center">
+                <span className="text-[9px] text-gray-600 font-mono">{r.round}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
