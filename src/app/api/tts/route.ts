@@ -15,37 +15,41 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
     if (!apiKey) {
-      // No API key — tell client to use browser speech
-      return NextResponse.json({ text, fallback: true });
+      console.log("[TTS] No ELEVENLABS_API_KEY found in environment");
+      return NextResponse.json({ text, fallback: true, reason: "no_api_key" });
     }
 
-    // Default voice: "Rachel" (21m00Tcm4TlvDq8ikWAM)
-    // You can change this to any ElevenLabs voice ID
+    // Default voice: "Rachel" — change via ELEVENLABS_VOICE_ID env var
     const voiceId = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
 
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "xi-api-key": apiKey,
+    const elevenLabsUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+    const response = await fetch(elevenLabsUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "xi-api-key": apiKey,
+        "Accept": "audio/mpeg",
+      },
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: {
+          stability: 0.4,
+          similarity_boost: 0.8,
         },
-        body: JSON.stringify({
-          text,
-          model_id: "eleven_monolingual_v1",
-          voice_settings: {
-            stability: 0.4,
-            similarity_boost: 0.8,
-            style: 0.5,
-          },
-        }),
-      }
-    );
+      }),
+    });
 
     if (!response.ok) {
-      // ElevenLabs failed — fallback to browser speech
-      return NextResponse.json({ text, fallback: true });
+      const errorText = await response.text();
+      console.log(`[TTS] ElevenLabs error (${response.status}): ${errorText}`);
+      return NextResponse.json({
+        text,
+        fallback: true,
+        reason: `elevenlabs_error_${response.status}`,
+        detail: errorText.slice(0, 200),
+      });
     }
 
     // Convert audio buffer to base64
@@ -53,7 +57,9 @@ export async function POST(req: NextRequest) {
     const base64 = Buffer.from(arrayBuffer).toString("base64");
 
     return NextResponse.json({ audio: base64, fallback: false });
-  } catch {
-    return NextResponse.json({ text: "", fallback: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown";
+    console.log(`[TTS] Exception: ${message}`);
+    return NextResponse.json({ text: "", fallback: true, reason: "exception", detail: message });
   }
 }

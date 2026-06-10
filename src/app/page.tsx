@@ -125,13 +125,18 @@ export default function Home() {
         body: JSON.stringify({ text }),
       });
       const data = await res.json();
+      console.log("[TTS Response]", data);
 
       if (!data.fallback && data.audio) {
         const audio = new Audio(`data:audio/mpeg;base64,${data.audio}`);
         audio.onended = () => setSpeaking(false);
-        audio.onerror = () => setSpeaking(false);
+        audio.onerror = (e) => {
+          console.error("[TTS] Audio playback error:", e);
+          setSpeaking(false);
+        };
         await audio.play();
       } else {
+        console.log("[TTS] Falling back to browser speech. Reason:", data.reason || "unknown");
         if (!window.speechSynthesis) { setSpeaking(false); return; }
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
@@ -141,7 +146,8 @@ export default function Home() {
         utterance.onerror = () => setSpeaking(false);
         window.speechSynthesis.speak(utterance);
       }
-    } catch {
+    } catch (err) {
+      console.error("[TTS] Fetch error:", err);
       if (window.speechSynthesis) {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 0.9;
