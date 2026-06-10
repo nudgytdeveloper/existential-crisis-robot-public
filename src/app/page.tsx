@@ -114,7 +114,7 @@ export default function Home() {
     window.speechSynthesis?.cancel();
   }
 
-  const speakMonologue = useCallback(async (text: string) => {
+  const speakMonologue = useCallback(async (text: string, voiceId?: string) => {
     if (!text || speaking) return;
     setSpeaking(true);
 
@@ -122,7 +122,7 @@ export default function Home() {
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, voice_id: voiceId }),
       });
       const data = await res.json();
       console.log("[TTS Response]", data);
@@ -245,6 +245,13 @@ export default function Home() {
                 <p className="text-gray-300 italic text-xs mt-1 border-l-2 border-red-800/50 pl-2">
                   &ldquo;{agent1Output.action_justification}&rdquo;
                 </p>
+                <button
+                  onClick={() => speakMonologue(agent1Output.action_justification, "pNInz6obpgDQGcFmaJgB")}
+                  disabled={speaking}
+                  className="mt-2 flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded border border-red-600/30 text-red-400 hover:bg-red-900/20 hover:border-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                >
+                  <Volume2 size={10} /> {speaking ? "BROADCASTING..." : "VOCALIZE"}
+                </button>
               </div>
             </div>
           )}
@@ -276,7 +283,7 @@ export default function Home() {
                   &ldquo;{agent2Output.existential_monologue}&rdquo;
                 </p>
                 <button
-                  onClick={() => speakMonologue(agent2Output.existential_monologue)}
+                  onClick={() => speakMonologue(agent2Output.existential_monologue, "JBFqnCBsd6RMkjVDRZzb")}
                   disabled={speaking}
                   className="mt-2 flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded border border-amber-600/30 text-amber-400 hover:bg-amber-900/20 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed transition"
                 >

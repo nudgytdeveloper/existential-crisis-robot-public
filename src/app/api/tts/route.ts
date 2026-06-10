@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ElevenLabsClient, play } from '@elevenlabs/elevenlabs-js';
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
+
 /**
  * TTS endpoint using ElevenLabs official SDK.
+ * Accepts optional voice_id to support different voices per agent.
  * Returns base64-encoded mp3 audio or signals fallback to browser speech.
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const text: string = body.text || "";
+    const voiceOverride: string | undefined = body.voice_id;
 
     if (!text.trim()) {
       return NextResponse.json({ error: "No text provided", fallback: true });
@@ -19,7 +22,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ text, fallback: true, reason: "no_api_key" });
     }
 
-    const voiceId = process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb";
+    // Use voice_id from request body, or env var, or default
+    const voiceId = voiceOverride || process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb";
 
     const elevenlabs = new ElevenLabsClient({ apiKey });
 
